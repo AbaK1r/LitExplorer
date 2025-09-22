@@ -1,0 +1,58 @@
+[general]
+log_dir = "lightning_logs"
+hparams_file = "hparams.yaml"
+cache_enabled = true
+
+[ignored_parameters]
+parameters = [
+    "fold",
+    "devices",
+    "random_seed",
+    "timestamp",
+    "worker_id",
+    "run_id",
+    "version",
+]
+
+[tolerance]
+float_tolerance = 0.001
+int_tolerance = 0
+string_case_sensitive = false
+
+[grouping]
+group_by_all_parameters = true
+grouping_parameters = [
+    "model_type",
+    "dataset",
+    "learning_rate",
+]
+similarity_threshold = 2
+
+[diff]
+show_detailed_diff = true
+diff_format = "key: value1 vs value2"
+highlight_diff_keys = true
+
+[tui]
+color_theme = "default"
+colors = { same_experiment = "green", similar_experiment = "yellow", selected = "blue", background = "black", text = "white" }
+layout = "list"
+show_help_bar = true
+auto_expand_groups = false
+
+[keybindings]
+up = "up"
+down = "down"
+left = "left"
+right = "right"
+select = "space"
+confirm = "enter"
+quit = "q"
+help = "h"
+filter = "/"
+
+[test_script]
+path = "test.py"
+default_args = { filter = "", sort_key = "fold" }
+prompt_for_args = true
+fixed_args = []
