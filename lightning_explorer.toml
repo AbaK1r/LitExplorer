@@ -21,12 +21,12 @@ string_case_sensitive = false
 
 [grouping]
 group_by_all_parameters = true
-grouping_parameters = [
-    "model_type",
-    "dataset",
-    "learning_rate",
-]
-similarity_threshold = 2
+# grouping_parameters = [
+#     "model_type",
+#     "dataset",
+#     "learning_rate",
+# ]
+similarity_threshold = 1
 
 [diff]
 show_detailed_diff = true

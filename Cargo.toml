@@ -12,6 +12,7 @@ clap = { version = "4.5.47", features = ["derive"] }
 crossterm = "0.29.0"
 ratatui = "0.29.0"
 serde = { version = "1.0.225", features = ["derive"] }
-serde_yaml = "0.9.34"
+serde_json = "1.0.145"
+serde_yaml = "0.9.34-deprecated"
 toml = "0.9.6"
 walkdir = "2.5.0"
