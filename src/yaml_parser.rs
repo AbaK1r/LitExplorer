@@ -1,9 +1,9 @@
 // src/yaml_parser.rs
-use std::path::Path;
-use std::collections::HashMap;
+use crate::models::{BasicParameterValue, ParameterValue};
 use anyhow::{Context, Result};
-use crate::models::{ParameterValue, BasicParameterValue};
 use serde_yaml;
+use std::collections::HashMap;
+use std::path::Path;
 
 /// 解析单个hparams.yaml文件到HashMap<String, ParameterValue>
 // ————————————————————————————————————————————————————————————————————————
@@ -32,18 +32,32 @@ fn flatten_yaml_value(
     match value {
         serde_yaml::Value::Mapping(map) => {
             for (key, val) in map {
-                let key_str = key.as_str()
+                let key_str = key
+                    .as_str()
                     .ok_or_else(|| anyhow::anyhow!("Non-string key in mapping: {:?}", key))?;
-                let new_path = if path.is_empty() { key_str.to_string() } else { format!("{}-{}", path, key_str) };
+                let new_path = if path.is_empty() {
+                    key_str.to_string()
+                } else {
+                    format!("{}-{}", path, key_str)
+                };
                 flatten_yaml_value(val, output, new_path)?;
             }
         }
 
         serde_yaml::Value::Sequence(seq) => {
             // Check if all items are simple (leaf) values
-            if seq.iter().all(|v| matches!(v, serde_yaml::Value::String(_) | serde_yaml::Value::Number(_) | serde_yaml::Value::Bool(_))) {
+            if seq.iter().all(|v| {
+                matches!(
+                    v,
+                    serde_yaml::Value::String(_)
+                        | serde_yaml::Value::Number(_)
+                        | serde_yaml::Value::Bool(_)
+                )
+            }) {
                 let list: Result<Vec<ParameterValue>> = seq
-                    .iter().map(|v| base_value_to_parameter_value(v)).collect();
+                    .iter()
+                    .map(|v| base_value_to_parameter_value(v))
+                    .collect();
                 output.insert(path, ParameterValue::List(list?));
             } else {
                 // Recurse into complex list items (e.g., maps or nested lists)
@@ -76,7 +90,9 @@ fn flatten_yaml_value(
 // ————————————————————————————————————————————————————————————————————————
 fn base_value_to_parameter_value(value: &serde_yaml::Value) -> Result<ParameterValue> {
     match value {
-        serde_yaml::Value::String(s) => Ok(ParameterValue::Basic(BasicParameterValue::String(s.clone()))),
+        serde_yaml::Value::String(s) => Ok(ParameterValue::Basic(BasicParameterValue::String(
+            s.clone(),
+        ))),
         serde_yaml::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
                 Ok(ParameterValue::Basic(BasicParameterValue::Int(i)))
@@ -92,7 +108,9 @@ fn base_value_to_parameter_value(value: &serde_yaml::Value) -> Result<ParameterV
 }
 
 /// 批量解析多个hparams.yaml文件
-pub fn parse_multiple_hparams_files(file_paths: &[std::path::PathBuf]) -> Result<Vec<(std::path::PathBuf, HashMap<String, ParameterValue>)>> {
+pub fn parse_multiple_hparams_files(
+    file_paths: &[std::path::PathBuf],
+) -> Result<Vec<(std::path::PathBuf, HashMap<String, ParameterValue>)>> {
     let mut results = Vec::new();
 
     for file_path in file_paths {
@@ -114,7 +132,7 @@ pub fn parse_multiple_hparams_files(file_paths: &[std::path::PathBuf]) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{print_hparams_pretty, ParameterValue, BasicParameterValue};
+    use crate::models::{BasicParameterValue, ParameterValue, print_hparams_pretty};
 
     #[test]
     fn test_parse_hparams_file() {
@@ -186,7 +204,9 @@ employees:
         );
         assert_eq!(
             hparams.get("call_back_monitor"),
-            Some(&ParameterValue::Basic(BasicParameterValue::String("VAL--acc".to_string())))
+            Some(&ParameterValue::Basic(BasicParameterValue::String(
+                "VAL--acc".to_string()
+            )))
         );
 
         // null 字段应被忽略（根据你的 flatten 逻辑）
@@ -199,7 +219,9 @@ employees:
         );
         assert_eq!(
             hparams.get("trainer-accelerator"),
-            Some(&ParameterValue::Basic(BasicParameterValue::String("gpu".to_string())))
+            Some(&ParameterValue::Basic(BasicParameterValue::String(
+                "gpu".to_string()
+            )))
         );
         assert_eq!(
             hparams.get("trainer-benchmark"),
@@ -211,15 +233,17 @@ employees:
         );
         assert_eq!(
             hparams.get("trainer-precision"),
-            Some(&ParameterValue::Basic(BasicParameterValue::String("32-true".to_string())))
+            Some(&ParameterValue::Basic(BasicParameterValue::String(
+                "32-true".to_string()
+            )))
         );
 
         // trainer-devices 是简单列表 → 应为 List
         assert_eq!(
             hparams.get("trainer-devices"),
-            Some(&ParameterValue::List(vec![
-                ParameterValue::Basic(BasicParameterValue::Int(1))
-            ]))
+            Some(&ParameterValue::List(vec![ParameterValue::Basic(
+                BasicParameterValue::Int(1)
+            )]))
         );
 
         // employees[0] 字段
@@ -229,15 +253,21 @@ employees:
         );
         assert_eq!(
             hparams.get("employees-0-name"),
-            Some(&ParameterValue::Basic(BasicParameterValue::String("John Doe".to_string())))
+            Some(&ParameterValue::Basic(BasicParameterValue::String(
+                "John Doe".to_string()
+            )))
         );
         assert_eq!(
             hparams.get("employees-0-department"),
-            Some(&ParameterValue::Basic(BasicParameterValue::String("Engineering".to_string())))
+            Some(&ParameterValue::Basic(BasicParameterValue::String(
+                "Engineering".to_string()
+            )))
         );
         assert_eq!(
             hparams.get("employees-0-contact-email"),
-            Some(&ParameterValue::Basic(BasicParameterValue::String("john@company.com".to_string())))
+            Some(&ParameterValue::Basic(BasicParameterValue::String(
+                "john@company.com".to_string()
+            )))
         );
 
         // employees[0].skills 是字符串列表 → 应为 List
@@ -257,7 +287,9 @@ employees:
         );
         assert_eq!(
             hparams.get("employees-1-name"),
-            Some(&ParameterValue::Basic(BasicParameterValue::String("Jane Smith".to_string())))
+            Some(&ParameterValue::Basic(BasicParameterValue::String(
+                "Jane Smith".to_string()
+            )))
         );
         assert_eq!(
             hparams.get("employees-1-skills"),
@@ -292,12 +324,14 @@ employees:
             "employees-1-skills",
             "employees-1-contact-email",
             "employees-1-contact-phone",
-        ].iter().cloned().collect();
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
-        let actual_keys: std::collections::HashSet<&String> = hparams.keys().collect();
-        let actual_key_strs: std::collections::HashSet<&str> = actual_keys.iter().map(|s| s.as_str()).collect();
-
-        assert_eq!(actual_key_strs, expected_keys, "Key sets do not match");
+        let actual_keys: std::collections::HashSet<&str> =
+            hparams.keys().map(String::as_str).collect();
+        assert_eq!(actual_keys, expected_keys, "Key sets do not match");
 
         // 清理
         std::fs::remove_file(&test_file).unwrap();

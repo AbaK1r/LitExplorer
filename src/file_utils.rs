@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
-use walkdir::{WalkDir, DirEntry};
 use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
+use walkdir::{DirEntry, WalkDir};
 
 /// 遍历日志目录，收集所有hparams.yaml文件路径
 pub fn find_hparams_files(log_dir: &str, hparams_file: &str) -> Result<Vec<PathBuf>> {
@@ -19,10 +19,10 @@ pub fn find_hparams_files(log_dir: &str, hparams_file: &str) -> Result<Vec<PathB
         .follow_links(true)
         .max_depth(2)
         .into_iter()
-        .filter_map(Result::ok)             // 过滤掉错误条目
+        .filter_map(Result::ok) // 过滤掉错误条目
         .filter(|entry| is_hparams_file(entry, hparams_file)) // 保留符合条件的
         .map(|entry| entry.path().to_path_buf()) // 提取路径
-        .collect();                          // 收集成 Vec
+        .collect(); // 收集成 Vec
 
     // 按版本号排序（从目录名中提取）
     hparams_files.sort_by(|a, b| {
@@ -36,13 +36,11 @@ pub fn find_hparams_files(log_dir: &str, hparams_file: &str) -> Result<Vec<PathB
 
 /// 从路径的父目录名中提取 "version_" 后的字符串部分（如 "version_42" → "42"）
 fn extract_version_str_from_path(path: &Path) -> Option<String> {
-    path.parent()
-        .and_then(|p| p.file_name())
-        .and_then(|name| {
-            name.to_string_lossy()
-                .strip_prefix("version_")
-                .map(|s| s.to_string())
-        })
+    path.parent().and_then(|p| p.file_name()).and_then(|name| {
+        name.to_string_lossy()
+            .strip_prefix("version_")
+            .map(|s| s.to_string())
+    })
 }
 
 /// 检查文件名是否存在且为 hparams_file 文件，且父目录名称为 "version_{number}"
@@ -50,8 +48,8 @@ fn is_hparams_file(entry: &DirEntry, hparams_file: &str) -> bool {
     entry.file_type().is_file()
         && entry.file_name() == hparams_file
         && extract_version_str_from_path(&entry.path())
-        .and_then(|s| s.parse::<u32>().ok())
-        .is_some()
+            .and_then(|s| s.parse::<u32>().ok())
+            .is_some()
 }
 
 /// 从文件路径中提取版本号
@@ -63,14 +61,20 @@ fn extract_version_number(path: &Path) -> u32 {
 
 /// 从文件路径中提取版本号（带错误处理）
 pub fn extract_version_number_safe(path: &Path) -> Result<u32> {
-    let version_str = extract_version_str_from_path(path)
-        .ok_or_else(|| anyhow::anyhow!("Failed to extract version number from path: {}", path.display()))?;
+    let version_str = extract_version_str_from_path(path).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Failed to extract version number from path: {}",
+            path.display()
+        )
+    })?;
 
-    version_str
-        .parse()
-        .with_context(|| format!("Failed to parse version number from: version_{}", version_str))
+    version_str.parse().with_context(|| {
+        format!(
+            "Failed to parse version number from: version_{}",
+            version_str
+        )
+    })
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -147,19 +151,14 @@ mod tests {
         dbg!(&entries);
 
         // 查找对应的文件条目
-        let hparams_entry = entries.iter()
-            .find(|e| e.path() == hparams_file)
-            .unwrap();
+        let hparams_entry = entries.iter().find(|e| e.path() == hparams_file).unwrap();
 
-        let other_entry = entries.iter()
-            .find(|e| e.path() == other_file)
-            .unwrap();
+        let other_entry = entries.iter().find(|e| e.path() == other_file).unwrap();
 
-        let other_dir_entry = entries.iter()
-            .find(|e| e.path() == other_dir_file)
-            .unwrap();
+        let other_dir_entry = entries.iter().find(|e| e.path() == other_dir_file).unwrap();
 
-        let version_other_dir_entry = entries.iter()
+        let version_other_dir_entry = entries
+            .iter()
             .find(|e| e.path() == version_other_dir_file)
             .unwrap();
         // 测试正确的hparams文件
@@ -224,7 +223,8 @@ mod tests {
         assert_eq!(result.len(), 4);
 
         // 检查排序顺序
-        let versions: Vec<u32> = result.iter()
+        let versions: Vec<u32> = result
+            .iter()
             .map(|path| extract_version_number(path))
             .collect();
 
@@ -233,7 +233,10 @@ mod tests {
         // 检查文件路径正确
         for (i, path) in result.iter().enumerate() {
             assert!(path.ends_with("hparams.yaml"));
-            assert!(path.to_string_lossy().contains(&format!("version_{}", versions[i])));
+            assert!(
+                path.to_string_lossy()
+                    .contains(&format!("version_{}", versions[i]))
+            );
         }
     }
 

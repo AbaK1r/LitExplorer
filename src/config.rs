@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::Path;
 use crate::models::Config;
 use anyhow::{Context, Result};
+use std::fs;
+use std::path::Path;
 
 pub fn load_config(config_path: &str) -> Result<Config> {
     // 检查配置文件是否存在，如果不存在则创建默认配置
@@ -44,6 +44,7 @@ int_tolerance = 0
 string_case_sensitive = false
 
 [grouping]
+main_key = ["model_name", "dataset"]
 group_by_all_parameters = true
 grouping_parameters = [
     "model_type",

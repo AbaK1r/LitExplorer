@@ -12,6 +12,13 @@ parameters = [
     "worker_id",
     "run_id",
     "version",
+    "trainer-precision",
+    "trainer-max_epochs",
+    "trainer-devices",
+    "trainer-num_sanity_val_steps",
+    "trainer-check_val_every_n_epoch",
+    "trainer-enable_progress_bar",
+    "num_workers",
 ]
 
 [tolerance]
@@ -20,6 +27,7 @@ int_tolerance = 0
 string_case_sensitive = false
 
 [grouping]
+main_key = ["model_name", "dataset"]
 group_by_all_parameters = true
 # grouping_parameters = [
 #     "model_type",
