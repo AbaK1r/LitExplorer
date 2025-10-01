@@ -5,8 +5,8 @@ use std::path::PathBuf;
 /// 版本数据结构，包含实验版本的相关信息
 #[derive(Debug, Clone, PartialEq)]
 pub struct VersionData {
-    pub version_num: u32,  // 版本号，用于标识实验的不同运行版本
-    pub path: PathBuf,  // 实验日志文件的存储路径
+    pub version_num: u32, // 版本号，用于标识实验的不同运行版本
+    pub path: PathBuf,    // 实验日志文件的存储路径
     // ————————————————————————————————————————————————————————————————————————
     // 超参数集合，键为参数名，值为参数值
     // ————————————————————————————————————————————————————————————————————————
@@ -16,7 +16,7 @@ pub struct VersionData {
 /// 实验组结构，包含一组相关的实验版本
 #[derive(Debug, PartialEq)]
 pub struct ExperimentGroup {
-    pub group_id: String,  // 实验组唯一标识符，用于区分不同的实验组
+    pub group_id: String, // 实验组唯一标识符，用于区分不同的实验组
     // ————————————————————————————————————————————————————————————————————————
     // 基础参数集合，定义该实验组的共同特征
     // 键为参数名，值为参数值

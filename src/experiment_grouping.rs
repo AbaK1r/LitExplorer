@@ -48,11 +48,18 @@ pub fn create_version_data_list(
             }
         }
 
+        // 过滤参数，排除被忽略的参数和根据分组参数进行筛选
+        let filtered_hparams = filter_parameters(
+            &hparams,
+            &config.ignored_parameters.parameters,
+            &config.grouping.grouping_parameters,
+        );
+
         // 创建VersionData实例
         let version_data = VersionData {
             version_num,
             path: file_path.parent().unwrap().to_path_buf(), // 保存目录路径
-            hparams,
+            hparams: filtered_hparams,
         };
 
         versions.push(version_data);
@@ -134,8 +141,9 @@ pub fn create_version_data_list(
                 }
             }
         }
-    } else {
-        // 没有配置main_key，沿用之前的逻辑：在所有版本中删除共有参数
+    } else if config.grouping.grouping_parameters.is_none() {
+        // 只有在没有指定分组参数时，才删除共有参数
+        // 如果指定了分组参数，我们已经过滤了需要的参数，不应该再删除
         if !versions.is_empty() {
             // 首先，获取第一个版本的所有键值对
             let first_version_hparams = &versions[0].hparams;
@@ -175,19 +183,19 @@ pub fn create_version_data_list(
 }
 
 /// 过滤参数，排除被忽略的参数
-/// 
+///
 /// 此函数根据配置过滤参数映射，支持两种模式：
 /// 1. 如果指定了分组参数列表，则只包含这些参数（同时排除被忽略的参数）
 /// 2. 如果没有指定分组参数，则包含所有未被忽略的参数
-/// 
+///
 /// # 参数
 /// * `hparams` - 原始参数映射
 /// * `ignored_params` - 需要排除的参数名列表
 /// * `grouping_params` - 可选的分组参数列表，如果指定则只包含这些参数
-/// 
+///
 /// # 返回值
 /// * `HashMap<String, ParameterValue>` - 过滤后的参数映射
-/// 
+///
 /// # 示例
 /// ```ignore
 /// let filtered = filter_parameters(&params, &["timestamp".to_string()], &Some(vec!["lr".to_string()]));
@@ -229,25 +237,25 @@ fn filter_parameters(
 }
 
 /// 计算参数集的哈希值，用于创建组ID
-/// 
+///
 /// 此函数根据参数值计算一致的哈希值，用于标识具有相同参数配置的实验组。
 /// 哈希计算考虑了配置的容差设置，确保在容差范围内相等的参数产生相同的哈希值。
 /// 参数按键排序以确保哈希的一致性，不受参数顺序影响。
-/// 
+///
 /// # 参数
 /// * `params` - 要计算哈希的参数映射
 /// * `config` - 包含容差配置的配置对象
-/// 
+///
 /// # 返回值
 /// * `String` - 十六进制格式的哈希字符串
-/// 
+///
 /// # 哈希逻辑
 /// - 字符串：根据大小写敏感设置进行标准化
 /// - 浮点数：根据容差进行舍入处理
 /// - 整数：根据容差进行调整
 /// - 布尔值：直接使用原始值
 /// - 列表：递归处理每个元素并考虑长度
-/// 
+///
 /// # 示例
 /// ```ignore
 /// let hash = compute_params_hash(&params, &config);
@@ -293,8 +301,25 @@ fn compute_params_hash(params: &HashMap<String, ParameterValue>, config: &Config
         }
     }
 
+    // 确定要哈希的参数
+    let params_to_hash: HashMap<String, ParameterValue> =
+        if let Some(ref grouping_params) = config.grouping.grouping_parameters {
+            // 如果指定了分组参数，只哈希这些参数
+            grouping_params
+                .iter()
+                .filter_map(|param| {
+                    params
+                        .get(param)
+                        .map(|value| (param.clone(), value.clone()))
+                })
+                .collect()
+        } else {
+            // 如果没有指定分组参数，哈希所有参数
+            params.clone()
+        };
+
     // 将参数按键排序以获得一致的哈希
-    let mut sorted_keys: Vec<_> = params.keys().collect();
+    let mut sorted_keys: Vec<_> = params_to_hash.keys().collect();
     sorted_keys.sort();
 
     for key in sorted_keys {
@@ -302,7 +327,7 @@ fn compute_params_hash(params: &HashMap<String, ParameterValue>, config: &Config
         key.hash(&mut hasher);
 
         // 对值进行哈希（使用equals_with_tolerance方法来考虑容差）
-        let value = params.get(key).unwrap();
+        let value = params_to_hash.get(key).unwrap();
         hash_parameter_value(value, &mut hasher, config);
     }
 
@@ -311,21 +336,21 @@ fn compute_params_hash(params: &HashMap<String, ParameterValue>, config: &Config
 }
 
 /// 比较两个参数集，返回差异参数的数量
-/// 
+///
 /// 此函数比较两个参数映射，计算在考虑容差设置的情况下有多少参数不同。
 /// 差异计算包括：
 /// 1. 第一个参数集中存在但第二个参数集中不存在的参数
 /// 2. 两个参数集中都存在但值不同的参数（考虑容差）
 /// 3. 第二个参数集中存在但第一个参数集中不存在的参数
-/// 
+///
 /// # 参数
 /// * `params1` - 第一个参数映射
 /// * `params2` - 第二个参数映射  
 /// * `tolerance` - 包含容差配置的配置对象
-/// 
+///
 /// # 返回值
 /// * `usize` - 差异参数的总数量
-/// 
+///
 /// # 示例
 /// ```ignore
 /// let diff_count = count_different_parameters(&params1, &params2, &config);
@@ -366,23 +391,26 @@ pub fn group_versions(config: &Config, versions: Vec<VersionData>) -> Result<Vec
 
     // 对每个未分组的版本进行分组
     while let Some(version) = ungrouped_versions.pop() {
-        // 过滤版本的参数
-        let filtered_params = filter_parameters(
-            &version.hparams,
-            &config.ignored_parameters.parameters,
-            &config.grouping.grouping_parameters,
-        );
-
         // 尝试将版本添加到现有组
         let mut added_to_existing = false;
 
         for group in &mut groups {
-            // 计算与组基准参数的差异
-            let diff_count =
-                count_different_parameters(&filtered_params, &group.base_parameters, config);
+            // 检查是否可以添加到该组
+            let can_add_to_group = if let Some(ref grouping_params) =
+                config.grouping.grouping_parameters
+            {
+                // 如果指定了分组参数，基于参数结构进行分组
+                // 检查两个版本是否都有相同的参数结构（即分组参数都存在）
+                grouping_params.iter().all(|param| {
+                    version.hparams.contains_key(param) && group.base_parameters.contains_key(param)
+                })
+            } else {
+                // 如果没有指定分组参数，检查所有参数是否完全相同
+                count_different_parameters(&version.hparams, &group.base_parameters, config) == 0
+            };
 
-            // 如果差异在阈值范围内，则添加到该组
-            if diff_count == 0 {
+            // 如果可以添加到该组，则添加
+            if can_add_to_group {
                 group.member_versions.push(version.clone());
                 added_to_existing = true;
                 break;
@@ -391,11 +419,11 @@ pub fn group_versions(config: &Config, versions: Vec<VersionData>) -> Result<Vec
 
         // 如果没有添加到现有组，则创建新组
         if !added_to_existing {
-            let group_id = compute_params_hash(&filtered_params, config);
+            let group_id = compute_params_hash(&version.hparams, config);
 
             let new_group = ExperimentGroup {
                 group_id,
-                base_parameters: filtered_params,
+                base_parameters: version.hparams.clone(),
                 member_versions: vec![version],
             };
 
@@ -829,6 +857,72 @@ mod tests {
         temp_dir.close().expect("Failed to clean up temp directory");
     }
 
+    // 测试完整的流程：create_version_data_list过滤参数，group_versions使用过滤后的参数
+    #[test]
+    fn test_full_flow_with_parameter_filtering() {
+        // 创建测试配置，包含分组参数
+        let mut config = create_test_config();
+        config.grouping.grouping_parameters = Some(vec!["model".to_string(), "lr".to_string()]);
+        config.ignored_parameters.parameters = vec!["fold".to_string()];
+
+        // 创建临时目录和文件用于测试
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+
+        // 创建两个测试文件，具有相同的模型但不同的学习率
+        let file1 = temp_dir.path().join("version_001/hparams.yaml");
+        let file2 = temp_dir.path().join("version_002/hparams.yaml");
+
+        std::fs::create_dir_all(file1.parent().unwrap()).expect("Failed to create directory");
+        std::fs::create_dir_all(file2.parent().unwrap()).expect("Failed to create directory");
+
+        // 两个版本都有model=cnn，但学习率不同
+        std::fs::write(
+            &file1,
+            "model: cnn\nlr: 0.001\nbatch_size: 32\nfold: 1\noptimizer: adam\n",
+        )
+        .expect("Failed to write file1");
+        std::fs::write(
+            &file2,
+            "model: cnn\nlr: 0.01\nbatch_size: 64\nfold: 2\noptimizer: sgd\n",
+        )
+        .expect("Failed to write file2");
+
+        // 调用create_version_data_list进行参数过滤
+        let hparams_files = vec![file1, file2];
+        let (versions, _) = create_version_data_list(&config, &hparams_files)
+            .expect("Failed to create version data list");
+
+        // 验证参数过滤结果
+        assert_eq!(versions.len(), 2);
+
+        for version in &versions {
+            // 应该只包含分组参数（model和lr）
+            assert!(version.hparams.contains_key("model"));
+            assert!(version.hparams.contains_key("lr"));
+            // 不应该包含非分组参数
+            assert!(!version.hparams.contains_key("batch_size"));
+            assert!(!version.hparams.contains_key("optimizer"));
+            // 不应该包含忽略参数
+            assert!(!version.hparams.contains_key("fold"));
+        }
+
+        // 调用group_versions进行分组
+        let groups = group_versions(&config, versions).expect("Failed to group versions");
+
+        // 验证分组结果
+        // 由于两个版本的model相同，lr不同，应该被分到同一组
+        assert_eq!(
+            groups.len(),
+            1,
+            "Expected 1 group, but got {} groups. This means the grouping logic is not working as expected with filtered parameters.",
+            groups.len()
+        );
+        assert_eq!(groups[0].member_versions.len(), 2);
+
+        // 清理临时文件
+        temp_dir.close().expect("Failed to clean up temp directory");
+    }
+
     // 测试配置了main_key时，按main_key分组并在分组内删除共有参数的功能
     #[test]
     fn test_remove_common_hparams_with_main_key() {
@@ -899,7 +993,10 @@ mod tests {
             assert!(common_params.contains_key("batch_size"));
             assert!(common_params.contains_key("optimizer"));
         } else {
-            panic!("CNN group common parameters not found with key '{}'", cnn_group_key);
+            panic!(
+                "CNN group common parameters not found with key '{}'",
+                cnn_group_key
+            );
         }
 
         // 检查rnn组的共同参数
@@ -909,7 +1006,10 @@ mod tests {
             assert!(common_params.contains_key("hidden_size"));
             assert!(common_params.contains_key("dropout"));
         } else {
-            panic!("RNN group common parameters not found with key '{}'", rnn_group_key);
+            panic!(
+                "RNN group common parameters not found with key '{}'",
+                rnn_group_key
+            );
         }
 
         // 验证结果：
@@ -984,6 +1084,68 @@ mod tests {
                 "RNN version should keep different parameter 'lr'"
             );
         }
+
+        // 清理临时文件
+        temp_dir.close().expect("Failed to clean up temp directory");
+    }
+
+    // 测试参数过滤逻辑在create_version_data_list中的正确应用
+    #[test]
+    fn test_parameter_filtering_in_create_version_data_list() {
+        // 创建测试配置，包含忽略参数和分组参数
+        let mut config = create_test_config();
+        config.grouping.grouping_parameters = Some(vec!["model".to_string(), "lr".to_string()]);
+        config.ignored_parameters.parameters = vec!["fold".to_string(), "devices".to_string()];
+
+        // 创建临时目录和文件用于测试
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
+
+        // 创建测试文件，包含各种参数
+        let file_path = temp_dir.path().join("version_001/hparams.yaml");
+        std::fs::create_dir_all(file_path.parent().unwrap()).expect("Failed to create directory");
+
+        // 写入测试内容：包含分组参数、忽略参数和其他参数
+        let yaml_content =
+            "model: cnn\nlr: 0.001\nbatch_size: 32\nfold: 1\ndevices: 2\noptimizer: adam\n";
+        std::fs::write(&file_path, yaml_content).expect("Failed to write test file");
+
+        // 调用被测试的函数
+        let hparams_files = vec![file_path];
+        let (versions, _) = create_version_data_list(&config, &hparams_files)
+            .expect("Failed to create version data list");
+
+        // 验证结果
+        assert_eq!(versions.len(), 1, "Should have 1 version");
+
+        let version = &versions[0];
+
+        // 应该只包含分组参数（model和lr），不包含忽略参数和其他参数
+        assert!(
+            version.hparams.contains_key("model"),
+            "Should contain 'model' parameter. Actual keys: {:?}",
+            version.hparams.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            version.hparams.contains_key("lr"),
+            "Should contain 'lr' parameter. Actual keys: {:?}",
+            version.hparams.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !version.hparams.contains_key("batch_size"),
+            "Should not contain 'batch_size' parameter (not in grouping_params)"
+        );
+        assert!(
+            !version.hparams.contains_key("fold"),
+            "Should not contain 'fold' parameter (ignored)"
+        );
+        assert!(
+            !version.hparams.contains_key("devices"),
+            "Should not contain 'devices' parameter (ignored)"
+        );
+        assert!(
+            !version.hparams.contains_key("optimizer"),
+            "Should not contain 'optimizer' parameter (not in grouping_params)"
+        );
 
         // 清理临时文件
         temp_dir.close().expect("Failed to clean up temp directory");
@@ -1078,7 +1240,10 @@ mod tests {
             assert!(common_params.contains_key("optimizer"));
             assert!(common_params.contains_key("batch_size"));
         } else {
-            panic!("CNN+MNIST group common parameters not found with key '{}'", cnn_mnist_group_key);
+            panic!(
+                "CNN+MNIST group common parameters not found with key '{}'",
+                cnn_mnist_group_key
+            );
         }
 
         // 检查CNN+CIFAR10组的共同参数
@@ -1088,7 +1253,10 @@ mod tests {
             assert!(common_params.contains_key("optimizer"));
             assert!(common_params.contains_key("batch_size"));
         } else {
-            panic!("CNN+CIFAR10 group common parameters not found with key '{}'", cnn_cifar_group_key);
+            panic!(
+                "CNN+CIFAR10 group common parameters not found with key '{}'",
+                cnn_cifar_group_key
+            );
         }
 
         // 验证结果：

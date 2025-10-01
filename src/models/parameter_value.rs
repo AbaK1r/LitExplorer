@@ -20,10 +20,10 @@ pub enum ParameterValue {
 /// 基本参数值类型，用于List中，只包含基本类型
 #[derive(Clone, PartialEq)]
 pub enum BasicParameterValue {
-    String(String),  // 字符串类型参数值
-    Float(f64),  // 浮点数类型参数值
-    Int(i64),  // 整数类型参数值
-    Bool(bool),  // 布尔类型参数值
+    String(String), // 字符串类型参数值
+    Float(f64),     // 浮点数类型参数值
+    Int(i64),       // 整数类型参数值
+    Bool(bool),     // 布尔类型参数值
 }
 
 /// 为BasicParameterValue实现Debug trait，使用Display的格式
@@ -106,16 +106,16 @@ impl From<&ParameterValue> for JsonValue {
 }
 
 /// 将参数映射格式化为美观的JSON字符串并打印到控制台
-/// 
+///
 /// 此函数将HashMap中的参数值转换为JSON格式，并使用serde_json的漂亮打印功能
 /// 输出格式化的JSON字符串，便于调试和查看参数结构
-/// 
+///
 /// # 参数
 /// * `hparams` - 包含参数名和参数值的HashMap
-/// 
+///
 /// # 返回值
 /// * `Result<(), serde_json::Error>` - 成功时返回Ok(())，序列化失败时返回错误
-/// 
+///
 /// # 示例
 /// ```ignore
 /// let mut params = HashMap::new();/// params.insert("learning_rate".to_string(), ParameterValue::Basic(BasicParameterValue::Float(0.001)));
@@ -187,7 +187,6 @@ impl ParameterValue {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -18,6 +18,10 @@ parameters = [
     "trainer-num_sanity_val_steps",
     "trainer-check_val_every_n_epoch",
     "trainer-enable_progress_bar",
+    "trainer-accelerator",
+    "trainer-enable_model_summary",
+    "trainer-log_every_n_steps",
+    "trainer-benchmark",
     "num_workers",
 ]
 
@@ -43,10 +47,15 @@ highlight_diff_keys = true
 
 [tui]
 color_theme = "default"
-colors = { same_experiment = "green", similar_experiment = "yellow", selected = "blue", background = "black", text = "white" }
+colors = { same_experiment = "green", similar_experiment = "yellow", selected = "blue", background = "black", text = "white", border = "cyan", highlight = "white", status_bar_bg = "dark_gray", status_bar_text = "white" }
 layout = "list"
 show_help_bar = true
 auto_expand_groups = false
+detail_panel_position = "Bottom"
+refresh_rate_ms = 250
+version_panel_proportion = 70
+status_bar_height = 3
+scroll_indicators = true
 
 [keybindings]
 up = "up"
@@ -58,6 +67,9 @@ confirm = "enter"
 quit = "q"
 help = "h"
 filter = "/"
+switch_view = "v"
+scroll_detail_up = "u"
+scroll_detail_down = "d"
 
 [test_script]
 path = "test.py"

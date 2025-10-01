@@ -3,6 +3,7 @@ mod config;
 mod experiment_grouping;
 mod file_utils;
 mod models;
+mod tui;
 mod yaml_parser;
 
 use anyhow::Result;
@@ -10,6 +11,7 @@ use config::load_config;
 use experiment_grouping::{create_version_data_list, find_similar_groups, group_versions};
 use file_utils::find_hparams_files;
 use models::AppState;
+use tui::TuiApp;
 
 fn main() -> Result<()> {
     // 加载配置文件
@@ -115,15 +117,18 @@ fn main() -> Result<()> {
     }
 
     // 创建AppState实例，保存所有实验数据和配置
-    let _app_state = AppState {
+    let app_state = AppState {
         all_versions: version_data_list,
         experiment_groups,
         config,
         group_common_hparams,
     };
-    println!(
-        "AppState created successfully:\n{:?}",
-        _app_state.group_common_hparams
-    );
+
+    // 启动TUI界面
+    let app = tui::App::new(app_state);
+    let keybindings = app.state.config.keybindings.clone();
+    let mut tui_app = TuiApp::new(app, keybindings)?;
+    tui_app.run()?;
+
     Ok(())
 }
