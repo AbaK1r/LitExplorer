@@ -2,10 +2,10 @@ use crate::tui::{
     App, Event, EventHandler, InputHandler, Renderer, UserAction
 };
 use anyhow::Result;
-use crossterm::event::EnableMouseCapture;
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::{
     execute,
-    terminal::{EnterAlternateScreen, enable_raw_mode},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
@@ -63,7 +63,7 @@ impl TuiApp {
                         UserAction::Quit => self.app.quit(),
                         _ => self.app.last_user_action = action
                     }
-                    
+                     
                     // self.handle_user_action(action)?;
                 }
                 Event::Tick => {
@@ -76,6 +76,9 @@ impl TuiApp {
             }
         }
 
+        // 在退出前清理终端状态
+        self.cleanup()?;
+        
         Ok(())
     }
 
@@ -103,14 +106,14 @@ impl TuiApp {
 
 
     // 清理终端设置
-    // pub fn cleanup(&mut self) -> Result<()> {
-    //     disable_raw_mode()?;
-    //     execute!(
-    //         self.terminal.backend_mut(),
-    //         LeaveAlternateScreen,
-    //         DisableMouseCapture
-    //     )?;
-    //     self.terminal.show_cursor()?;
-    //     Ok(())
-    // }
+    pub fn cleanup(&mut self) -> Result<()> {
+        disable_raw_mode()?;
+        execute!(
+            self.terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        self.terminal.show_cursor()?;
+        Ok(())
+    }
 }
